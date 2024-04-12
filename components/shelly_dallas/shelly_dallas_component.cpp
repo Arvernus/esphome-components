@@ -1,6 +1,8 @@
 #include "shelly_dallas_component.h"
 #include "esphome/core/log.h"
 
+#include <sstream>
+
 namespace esphome {
 namespace shelly_dallas {
 
@@ -14,6 +16,13 @@ static const uint8_t DALLAS_MODEL_DS28EA00 = 0x42;
 static const uint8_t DALLAS_COMMAND_START_CONVERSION = 0x44;
 static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
+
+std::string uint64_to_string( uint64 value ) {
+    std::ostringstream os;
+    os << value;
+    return os.str();
+}
+
 
 uint16_t ShellyDallasTemperatureSensor::millis_to_wait_for_conversion() const {
   switch (this->resolution_) {
@@ -39,9 +48,10 @@ void ShellyDallasComponent::setup() {
   }
 
   for (auto &address : raw_sensors) {
+    std::string s = uint64_to_string(address);
     auto *address8 = reinterpret_cast<uint8_t *>(&address);
     if (crc8(address8, 7) != address8[7]) {
-      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", format_hex(address).c_str());
+      ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", s.c_str());
       continue;
     }
     if (address8[0] != DALLAS_MODEL_DS18S20 && address8[0] != DALLAS_MODEL_DS1822 &&
@@ -78,7 +88,8 @@ void ShellyDallasComponent::dump_config() {
   } else {
     ESP_LOGD(TAG, "  Found sensors:");
     for (auto &address : this->found_sensors_) {
-      ESP_LOGD(TAG, "    0x%s", format_hex(address).c_str());
+      std::string s = uint64_to_string(address);
+      ESP_LOGD(TAG, "    0x%s", s.c_str());
     }
   }
 
@@ -169,12 +180,12 @@ void ShellyDallasTemperatureSensor::set_index(uint8_t index) { this->index_ = in
 uint8_t *ShellyDallasTemperatureSensor::get_address8() { return reinterpret_cast<uint8_t *>(&this->address_); }
 const std::string &ShellyDallasTemperatureSensor::get_address_name() {
   if (this->address_name_.empty()) {
-    this->address_name_ = std::string("0x") + format_hex(this->address_);
+    this->address_name_ = std::string("0x") + uint64_to_string(this->address_);
   }
 
   return this->address_name_;
 }
-bool ICACHE_RAM_ATTR ShellyDallasTemperatureSensor::read_scratch_pad() {
+bool HOT IRAM_ATTR ShellyDallasTemperatureSensor::read_scratch_pad() {
   ESPOneWire *wire = this->parent_->one_wire_;
   if (!wire->reset()) {
     return false;
@@ -266,7 +277,7 @@ float ShellyDallasTemperatureSensor::get_temp_c() {
 
   return temp / 128.0f;
 }
-std::string ShellyDallasTemperatureSensor::unique_id() { return "dallas-" + format_hex(this->address_); }
+std::string ShellyDallasTemperatureSensor::unique_id() { return "dallas-" + uint64_to_string(this->address_); }
 
 }  // namespace dallas
 }  // namespace esphome
